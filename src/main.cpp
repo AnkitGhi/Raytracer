@@ -8,6 +8,7 @@
 #include <fstream>
 #include <algorithm>
 #include <array>    
+#include <limits>
 
 using namespace std;
 using float4 = std::tuple<float, float, float, float>;
@@ -41,11 +42,7 @@ public:
 
     Tuples normalize() const {
         float mag = magnitude();
-        return Tuples(
-            roundTo2Decimals(x/mag),
-            roundTo2Decimals(y/mag),
-            roundTo2Decimals(z/mag),
-            w);
+        return Tuples(x/mag,y/mag,z/mag,w);
     }
 
     Tuples operator+(const Tuples& second) const{
@@ -60,15 +57,16 @@ public:
         return Tuples(-x,-y,-z,-w);
     }
 
-    Tuples operator*(const Tuples& ab) const{
-        return Tuples(x*ab.x,y*ab.y,z*ab.z,w*ab.w);
+    float operator*(const Tuples& ab) const{
+        float dot = x*ab.x + y*ab.y + z*ab.z;
+        return dot;
     }
 
     Tuples operator*(const float num) const{
         return Tuples(x*num,y*num,z*num,w*num);
     }
 
-    Tuples operatorX(const Tuples& ab){
+    Tuples operatorX(const Tuples& ab)const {
         if (w != 0.0f || ab.w != 0.0f){
             throw logic_error("Cross product is only between two vectors");
         }
@@ -159,22 +157,22 @@ class Pixels{
 public:
     float red, green, blue;
 
-    Pixels(float _red, float _green, float _blue): 
+    Pixels(const float _red, const float _green, const float _blue): 
     red(_red), green(_green), blue(_blue){};
 
-    Pixels operator+(Pixels& c2){
+    Pixels operator+(const Pixels& c2)const {
         return Pixels(red+c2.red,green+c2.green, blue+c2.blue);
     }
 
-    Pixels operator-(Pixels& c2){
+    Pixels operator-(const Pixels& c2)const {
         return Pixels(red-c2.red,green-c2.green, blue-c2.blue);
     }
 
-    Pixels operator*(const int x){
+    Pixels operator*(const float x)const {
         return Pixels(red*x,green*x, blue*x);
     }
 
-    Pixels operator*(Pixels& c2){
+    Pixels operator*(const Pixels& c2)const {
         return Pixels(red*c2.red,green*c2.green, blue*c2.blue);
     }
 
@@ -219,7 +217,10 @@ class twomatrix{
 public:
     twomatrix(const array<array<float,2>,2>& values): data(values){};
 
-    twomatrix()= default;
+    twomatrix():data({{
+        {{1.0f,0.0f}},
+        {{0.0f,1.0f}}
+    }}){};
 
     array<float,2>& operator[](int row){
         return data[row];
@@ -273,7 +274,11 @@ private:
 class threematrix{
 public:
     threematrix(const array<array<float,3>,3>& values): data(values){};
-    threematrix() = default;
+    threematrix(): data({{
+        {{1.0f,0.0f,0.0f}},
+        {{0.0f,1.0f,0.0f}},
+        {{0.0f,0.0f,1.0f}}
+    }}){};
 
     void print(){
         for (auto &row: data){
@@ -383,7 +388,12 @@ private:
 class fourmatrix{
 public:
     fourmatrix(const array<array<float,4>,4> &values): data(values){};
-    fourmatrix() = default;
+    fourmatrix(): data({{
+        {{1.0f,0.0f,0.0f,0.0f}},
+        {{0.0f,1.0f,0.0f,0.0f}},
+        {{0.0f,0.0f,1.0f,0.0f}},
+        {{0.0f,0.0f,0.0f,1.0f}}
+    }}){};
     
     void print(){
         for (auto &row: data){
@@ -406,7 +416,7 @@ public:
         return data.size();
     }
 
-    fourmatrix operator*(fourmatrix& b){
+    fourmatrix operator*(const fourmatrix& b)const {
         fourmatrix news;
         for(int row=0;row<4;row++){
             for(int col=0;col<4;col++){
@@ -416,7 +426,7 @@ public:
         return news;
     }
 
-    fourmatrix operator/(float a)const{
+    fourmatrix operator/(float a)const {
         if(a==0){
             throw runtime_error("Cannot divide by zero.");
         }
@@ -429,7 +439,7 @@ public:
         return divided;
     }
 
-    Tuples operator*(Tuples& ab){
+    Tuples operator*(const Tuples& ab)const {
         float a = data[0][0]*ab.x + data[0][1]*ab.y + data[0][2]*ab.z + data[0][3]*ab.w;
         float b = data[1][0]*ab.x + data[1][1]*ab.y + data[1][2]*ab.z + data[1][3]*ab.w;
         float c = data[2][0]*ab.x + data[2][1]*ab.y + data[2][2]*ab.z + data[2][3]*ab.w;
@@ -595,14 +605,102 @@ fourmatrix shearing(int xy, int xz, int yx, int yz, int zx, int zy){
     return shear;
 }
 
-int main() {
+class Sphere{
+public:
+    int radius;
+    fourmatrix tranform;
+    Sphere(int _id): radius(_id),tranform(){}; 
 
+    void set_transform(const fourmatrix& A){
+        tranform = A;
+    }
+};
+
+class Ray{
+public:
+    Tuples origin;
+    Tuples direction;
+
+    Ray(Tuples _origin, Tuples _direction):origin(_origin),direction(_direction){};
+
+    Tuples position(float t)const{
+        return origin+direction*t;
+    }
+};
+
+class Intersection{
+public:
+    float t;
+    const Sphere* object;
+    Intersection(float _t, const Sphere* sph): t(_t), object(sph){};
+};
+
+class Intersections{
+public:
+    Intersections(initializer_list<Intersection> intersections): intersects(intersections){};
+
+    Intersection operator[](int index) const{
+        return intersects[index];
+    }
+
+    auto begin() { return intersects.begin(); }
+    auto end()   { return intersects.end(); }
+
+    auto begin() const { return intersects.cbegin(); }
+    auto end()   const { return intersects.cend(); }
+
+    int count()const{
+        return intersects.size();
+    }
+private:
+    vector<Intersection> intersects;
+};
+
+Ray transform(Ray& ab, fourmatrix& mat){
+    Tuples orig = mat*ab.origin;
+    Tuples dir = mat*ab.direction;
+    return Ray(orig, dir);
+}
+
+Intersections Intersects(Ray& ray,Sphere& spheres){
+    fourmatrix tran= spheres.tranform.invertible();
+    Ray rays = transform(ray,tran);
+    Tuples sphere_to_ray = rays.origin - point(0,0,0);
+    float a = rays.direction * rays.direction;
+    float b = 2* (rays.direction * sphere_to_ray);
+    float c = (sphere_to_ray * sphere_to_ray) -1;
+    float discriminant = pow(b,2)-4*a*c;
+    if(discriminant<0){
+        return {};
+    }
+    float t1=(-b-sqrt(discriminant))/(2*a);
+    float t2=(-b+sqrt(discriminant))/(2*a);
+    return {Intersection(t1,&spheres),Intersection(t2,&spheres)};
+};
+
+Intersection hit(Intersections& inters){
+    vector<float> ts;
+    for (Intersection& a: inters){
+        ts.push_back(a.t);
+    }
+    float smallest=numeric_limits<float>::max();
+    int count = 0;
+    int index = -1;
+    for (float small: ts){
+        if(small>0 && small<smallest){
+            smallest = small;
+            index = count;
+        }
+        count++;
+    }
+    if (index!=-1){
+        return inters[index];
+    }
+    return Intersection(0,nullptr);
+}
+
+void twelve_hour_clock(){
     const double PI = std::acos(-1.0);
-
-    // Tuples first = point(2,3,4);
-    // fourmatrix ab = shearing(0,0,1,0,0,0);
-    // Tuples tranformed = ab * first;
-    // tranformed.display();
     
     Canvas canva(500,500);
     Pixels white(1,1,1);
@@ -622,7 +720,7 @@ int main() {
 
     string out = canva.ppm_data();
     // cout<<out;
-    ofstream outfile("image.ppm");
+    ofstream outfile("clock.ppm");
     if (outfile.is_open()){
         outfile<<out;
         outfile.close();
@@ -631,27 +729,8 @@ int main() {
     else{
         cout<<"Couldn't open successfully";
     }
+}
 
-    // Canvas canva(900,550);
-    // const Pixels c1(1.5,0,0);
-
-    // const Tuples grav = vector_dec(0,-0.1,0);
-    // const Tuples wind = vector_dec(-0.01,0,0);
-    // grav.point_or_vec();
-    // wind.point_or_vec();
-    // const environment env(grav,wind);
-
-    // Tuples firstpoint = point(0,1,0);
-    // Tuples firstvelocity = vector_dec(1,1.8,0).normalize() * 11.25;
-    // projectile proj = projectile(firstpoint, firstvelocity);
-
-    // while (proj.position.y>=0){
-    //     proj = tick(proj, env);
-    //     float x = round(proj.position.x);
-    //     float y = canva.height - round(proj.position.y);
-    //     canva.write_pixels(x,y,c1);
-    // }
-
-    
-
+int main() {
+    cout<<"Try calling the twelve_hour_clock function"<<endl;
 }
