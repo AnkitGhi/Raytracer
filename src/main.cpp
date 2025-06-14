@@ -731,6 +731,44 @@ void twelve_hour_clock(){
     }
 }
 
+void red_sphere(){
+    int canvas_pixels = 100;
+    float wall_size = 7;
+    float pixel_size = wall_size/canvas_pixels;
+    float wall_z = 10;
+    Tuples ray_origin = point(0,0,-5);
+    float half = wall_size/2;
+    Canvas canva(canvas_pixels,canvas_pixels);
+    Pixels red(1,0,0);
+    Sphere s(1);
+    s.tranform.print();
+    for (int y=0;y<canvas_pixels;y++){
+        float y_position = half -pixel_size*y;
+        for(int x = 0;x<canvas_pixels;x++){
+            float x_position = -half+pixel_size*x;
+            Tuples position = point(x_position,y_position,wall_z);
+            Tuples ray_direction = (position - ray_origin);
+            Ray r(ray_origin,ray_direction.normalize());
+            Intersections xs = Intersects(r,s);
+            Intersection hit_check = hit(xs);
+            if (hit_check.object)
+            {
+                canva.write_pixels(x,y,red);
+            }
+        }
+    }
+    string out = canva.ppm_data();
+    ofstream outfile("sphere.ppm");
+    if (outfile.is_open()){
+        outfile<<out;
+        outfile.close();
+        cout<<"Closed successfully"<<endl;
+    }
+    else{
+        cout<<"Couldn't open successfully";
+    }
+}
+
 int main() {
-    cout<<"Try calling the twelve_hour_clock function"<<endl;
+    cout<<"Try calling the twelve_hour_clock and red_sphere functions"<<endl;
 }
